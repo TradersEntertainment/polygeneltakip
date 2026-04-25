@@ -15,10 +15,12 @@ function App() {
   const [name, setName] = useState('');
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
 
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+
   // Load from API
   const fetchWhales = async () => {
     try {
-      const response = await fetch('/api/whales');
+      const response = await fetch(`${API_BASE}/api/whales`);
       const data = await response.json();
       setWhales(data.whales);
     } catch (e) {
@@ -51,7 +53,7 @@ function App() {
     }
 
     try {
-      const response = await fetch('/api/whales', {
+      const response = await fetch(`${API_BASE}/api/whales`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address, name })
@@ -73,7 +75,7 @@ function App() {
 
   const handleRemove = async (addressToRemove: string) => {
     try {
-      const response = await fetch(`/api/whales/${addressToRemove}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE}/api/whales/${addressToRemove}`, { method: 'DELETE' });
       if (response.ok) {
         showToast('Balina takipten çıkarıldı.');
         fetchWhales();
