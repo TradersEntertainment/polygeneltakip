@@ -26,6 +26,9 @@ def format_telegram_message(wallet: str, trade: dict, nickname: str = None) -> s
     title = trade.get("title", "Unknown Market")
     outcome = trade.get("outcome", "Unknown Outcome")
     
+    import re
+    from datetime import datetime
+
     total_spent = round(size * price, 2)
     
     if outcome.lower() == "up":
@@ -36,26 +39,55 @@ def format_telegram_message(wallet: str, trade: dict, nickname: str = None) -> s
         emoji = "🔵"
         
     display_title = title
+    market_duration = ""
+    
     if " - " in title:
         parts = title.split(" - ")
         if len(parts) > 1:
-            display_title = f"{parts[0]}\n⏰ {parts[1]}"
+            display_title = f"{parts[0]}"
+            time_part = parts[1]
+            
+            # Try to extract duration
+            if "AM" in time_part or "PM" in time_part:
+                match = re.search(r'(\d{1,2}:\d{2}[AP]M)-(\d{1,2}:\d{2}[AP]M)', time_part)
+                if match:
+                    t1_str, t2_str = match.groups()
+                    try:
+                        t1 = datetime.strptime(t1_str, "%I:%M%p")
+                        t2 = datetime.strptime(t2_str, "%I:%M%p")
+                        diff = (t2 - t1).total_seconds() / 60
+                        if diff < 0: diff += 24*60
+                        if diff in [5, 15]:
+                            market_duration = f" {int(diff)} minute market"
+                    except:
+                        pass
+                        
+            display_title += f"\n⏰ {time_part}"
+
+    if not market_duration:
+        if "5-minute" in title.lower() or "5 minute" in title.lower():
+            market_duration = " 5 minute market"
+        elif "15-minute" in title.lower() or "15 minute" in title.lower():
+            market_duration = " 15 minute market"
             
     name_display = f"Balina adı : {nickname}" if nickname else f"Balina: {wallet}"
     
-    # 🔴 5.00$ | Down 5 minute market
-    # 📊 Bitcoin Up or Down - April 20, 5:25AM-5:30AM ET
-    # ⏰ January 21, 8:31 AM ET
-    # 💰 Fiyat: 0.660$
-    # Balina adı :  150dollarsto10k
-    
     timestamp = trade.get("timestamp", "")
-    
-    msg = f"{emoji} {total_spent}$ | {outcome} {side} market\n"
-    msg += f"📊 {display_title}\n"
+    time_str = ""
     if timestamp:
-        msg += f"⏰ {timestamp}\n"
+        try:
+            ts = float(timestamp)
+            if ts > 1e11:
+                ts /= 1000
+            time_str = datetime.fromtimestamp(ts).strftime("%B %d, %I:%M %p ET")
+        except:
+            time_str = str(timestamp)
+            
+    msg = f"{emoji} {total_spent:.2f}$ | {outcome}{market_duration}\n"
     msg += f"💰 Fiyat: {price:.3f}$\n"
+    msg += f"📊 {display_title}\n"
+    if time_str:
+        msg += f"⏰ {time_str}\n"
     msg += f"{name_display}\n"
     
     return msg
