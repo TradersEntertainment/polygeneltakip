@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 POLYMARKET_API_URL = "https://data-api.polymarket.com/activity"
-POLL_INTERVAL = 3
+POLL_INTERVAL = 10
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -20,11 +20,11 @@ HEADERS = {
 }
 
 def format_telegram_message(wallet: str, trade: dict, nickname: str = None) -> str:
-    side = trade.get("side", "UNKNOWN").upper()
-    size = float(trade.get("size", 0))
-    price = float(trade.get("price", 0))
-    title = trade.get("title", "Unknown Market")
-    outcome = trade.get("outcome", "Unknown Outcome")
+    side = str(trade.get("side") or "UNKNOWN").upper()
+    size = float(trade.get("size") or 0)
+    price = float(trade.get("price") or 0)
+    title = str(trade.get("title") or "Unknown Market")
+    outcome = str(trade.get("outcome") or "Unknown Outcome")
     
     import re
     from datetime import datetime
