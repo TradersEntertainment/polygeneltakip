@@ -125,7 +125,7 @@ def format_telegram_message(wallet: str, trade: dict, nickname: str = None) -> s
 async def fetch_recent_trades(session: aiohttp.ClientSession, address: str):
     params = {
         "user": address, 
-        "limit": 10,
+        "limit": 50,
         "_": int(time.time() * 1000)
     }
     try:
@@ -135,6 +135,7 @@ async def fetch_recent_trades(session: aiohttp.ClientSession, address: str):
                 trades = [item for item in data if item.get("type") == "TRADE"]
                 return trades
             else:
+                logger.error(f"API returned {response.status} for {address}")
                 return None
     except Exception as e:
         logger.error(f"Fetch error for {address}: {e}")
