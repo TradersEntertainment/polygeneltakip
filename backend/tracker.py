@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 POLYMARKET_API_URL = "https://data-api.polymarket.com/activity"
-POLL_INTERVAL = 10
+POLL_INTERVAL = 3
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -39,6 +39,22 @@ def format_telegram_message(wallet: str, trade: dict, nickname: str = None) -> s
         emoji = "🔵"
         
     display_title = title
+    
+    # Extract asset name
+    title_lower = title.lower()
+    if "bitcoin" in title_lower or "btc" in title_lower:
+        asset_name = "Bitcoin"
+    elif "ethereum" in title_lower or "eth" in title_lower:
+        asset_name = "Ethereum"
+    elif "solana" in title_lower or "sol" in title_lower:
+        asset_name = "Solana"
+    else:
+        # Fallback to the first word
+        asset_name = title.split(" ")[0]
+        
+    is_bitcoin = asset_name == "Bitcoin"
+    is_5m = False
+    
     market_duration = ""
     
     if " - " in title:
@@ -58,7 +74,9 @@ def format_telegram_message(wallet: str, trade: dict, nickname: str = None) -> s
                         diff = (t2 - t1).total_seconds() / 60
                         if diff < 0: diff += 24*60
                         if diff in [5, 15]:
-                            market_duration = f" {int(diff)} minute market"
+                            if diff == 5:
+                                is_5m = True
+                            market_duration = f" {asset_name} {int(diff)} minute"
                     except:
                         pass
                         
@@ -66,11 +84,17 @@ def format_telegram_message(wallet: str, trade: dict, nickname: str = None) -> s
 
     if not market_duration:
         if "5-minute" in title.lower() or "5 minute" in title.lower():
-            market_duration = " 5 minute market"
+            market_duration = f" {asset_name} 5 minute"
+            is_5m = True
         elif "15-minute" in title.lower() or "15 minute" in title.lower():
-            market_duration = " 15 minute market"
-            
-    name_display = f"Balina adı : {nickname}" if nickname else f"Balina: {wallet}"
+            market_duration = f" {asset_name} 15 minute"
+
+    is_usual = is_bitcoin and is_5m
+    alert_header = "⚡ FARKLI İŞLEM ⚡\n" if not is_usual else ""
+    if not is_usual:
+        emoji = "⚡" + emoji
+
+    name_display = f"{nickname}" if nickname else f"{wallet[:6]}..."
     
     timestamp = trade.get("timestamp", "")
     time_str = ""
@@ -79,17 +103,23 @@ def format_telegram_message(wallet: str, trade: dict, nickname: str = None) -> s
             ts = float(timestamp)
             if ts > 1e11:
                 ts /= 1000
-            time_str = datetime.fromtimestamp(ts).strftime("%B %d, %I:%M %p ET")
+            time_str = datetime.fromtimestamp(ts).strftime("%b %d, %I:%M %p")
         except:
             time_str = str(timestamp)
             
-    msg = f"{emoji} {total_spent:.2f}$ | {outcome}{market_duration}\n"
-    msg += f"💰 Fiyat: {price:.3f}$\n"
-    msg += f"📊 {display_title}\n"
-    if time_str:
-        msg += f"⏰ {time_str}\n"
-    msg += f"{name_display}\n"
+    # Remove newline from display_title if it exists
+    display_title = display_title.replace("\n", " | ")
     
+    # 1. Line: Alert Header (if any)
+    # 2. Line: Amount | Outcome Market | Price
+    msg = f"{alert_header}{emoji} {total_spent:.2f}$ | {outcome.upper()}{market_duration} | 💰 {price:.3f}$\n"
+    # 3. Line: Title
+    msg += f"📊 {display_title}\n"
+    # 4. Line: Whale Name and System Time
+    msg += f"👤 {name_display}"
+    if time_str:
+        msg += f" | ⏰ {time_str}"
+        
     return msg
 
 async def fetch_recent_trades(session: aiohttp.ClientSession, address: str):
