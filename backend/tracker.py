@@ -177,6 +177,25 @@ async def tracker_loop():
     timeout = aiohttp.ClientTimeout(total=10)
     
     async with aiohttp.ClientSession(connector=connector, timeout=timeout, headers=HEADERS) as session:
+        # --- STARTUP CHECK ---
+        try:
+            whales = await get_whales()
+            if whales:
+                first_whale = whales[0]
+                trades = await fetch_recent_trades(session, first_whale['address'])
+                if trades and len(trades) > 0:
+                    last_trade = trades[0]
+                    msg = format_telegram_message(first_whale['address'], last_trade, first_whale.get('name'))
+                    await send_notification(f"✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\nBağlantı testi başarılı. Balinanın son işlemi:\n\n{msg}")
+                else:
+                    await send_notification("✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\nBağlantı başarılı ancak geçmiş işlem bulunamadı.")
+            else:
+                await send_notification("✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\nLütfen bir cüzdan adresi ekleyin.")
+        except Exception as e:
+            logger.error(f"Startup check failed: {e}")
+            await send_notification(f"⚠️ <b>SİSTEM BAŞLATILDI ANCAK API BAĞLANTISINDA SORUN VAR!</b>\n{e}")
+        # ---------------------
+        
         while True:
             try:
                 whales = await get_whales()
