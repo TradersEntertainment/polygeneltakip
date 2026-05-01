@@ -42,9 +42,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from typing import Optional
+
 class WhaleCreate(BaseModel):
     address: str
     name: str
+    chat_id: Optional[str] = None
 
 @app.get("/api/whales")
 async def api_get_whales():
@@ -57,7 +60,7 @@ async def api_get_whales():
 @app.post("/api/whales")
 async def api_add_whale(whale: WhaleCreate):
     try:
-        success = await add_whale(whale.address, whale.name)
+        success = await add_whale(whale.address, whale.name, whale.chat_id)
         if success:
             return {"success": True, "message": "Whale added successfully"}
         else:

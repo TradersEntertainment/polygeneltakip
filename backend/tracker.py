@@ -167,7 +167,7 @@ async def process_wallet(session: aiohttp.ClientSession, whale: dict):
         try:
             tx_hash = trade.get("transactionHash")
             msg = format_telegram_message(address, trade, nickname)
-            await send_notification(msg)
+            await send_notification(msg, chat_id=whale.get('chat_id'))
             await record_activity(address, tx_hash, trade.get("timestamp"))
         except Exception as e:
             logger.error(f"Error processing trade {tx_hash}: {e}")

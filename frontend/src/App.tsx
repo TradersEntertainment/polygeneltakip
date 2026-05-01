@@ -7,12 +7,14 @@ interface Whale {
   name: string;
   addedAt: string;
   status: 'tracking' | 'paused';
+  chat_id?: string;
 }
 
 function App() {
   const [whales, setWhales] = useState<Whale[]>([]);
   const [address, setAddress] = useState('');
   const [name, setName] = useState('');
+  const [chatId, setChatId] = useState('');
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
 
   const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -56,12 +58,13 @@ function App() {
       const response = await fetch(`${API_BASE}/api/whales`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, name })
+        body: JSON.stringify({ address, name, chat_id: chatId || null })
       });
       
       if (response.ok) {
         setAddress('');
         setName('');
+        setChatId('');
         showToast(`${name} başarıyla eklendi!`);
         fetchWhales();
       } else {
@@ -122,6 +125,18 @@ function App() {
               />
             </div>
 
+            <div className="form-group">
+              <label htmlFor="chatId">Telegram Chat ID (İsteğe Bağlı)</label>
+              <input
+                type="text"
+                id="chatId"
+                className="input-field"
+                placeholder="Örn: -1001234567890"
+                value={chatId}
+                onChange={(e) => setChatId(e.target.value)}
+              />
+            </div>
+
             <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '10px' }}>
               Takibe Başla
             </button>
@@ -154,6 +169,7 @@ function App() {
                     <p>{whale.address}</p>
                     <div style={{ fontSize: '0.75rem', marginTop: '5px', color: 'rgba(255,255,255,0.4)' }}>
                       Eklendi: {whale.addedAt}
+                      {whale.chat_id && <span style={{ marginLeft: '10px', color: 'var(--accent-cyan)' }}>📱 {whale.chat_id}</span>}
                     </div>
                   </div>
                   <div className="whale-actions">

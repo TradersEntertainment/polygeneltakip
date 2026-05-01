@@ -15,6 +15,11 @@ async def init_db():
                 status TEXT DEFAULT 'tracking'
             )
         """)
+        try:
+            await db.execute("ALTER TABLE whales ADD COLUMN chat_id TEXT")
+        except aiosqlite.OperationalError:
+            pass
+
         await db.execute("""
             CREATE TABLE IF NOT EXISTS activity_history (
                 address TEXT NOT NULL,
@@ -32,10 +37,10 @@ async def get_whales():
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
 
-async def add_whale(address: str, name: str):
+async def add_whale(address: str, name: str, chat_id: str = None):
     async with aiosqlite.connect(DB_PATH) as db:
         try:
-            await db.execute("INSERT INTO whales (address, name) VALUES (?, ?)", (address, name))
+            await db.execute("INSERT INTO whales (address, name, chat_id) VALUES (?, ?, ?)", (address, name, chat_id))
             await db.commit()
             return True
         except aiosqlite.IntegrityError:

@@ -10,9 +10,10 @@ TARGET_CHAT_ID = os.getenv("TARGET_CHAT_ID", "")
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-async def send_notification(message: str):
+async def send_notification(message: str, chat_id: str = None):
     """Sends a formatted message to the target telegram group."""
+    target = chat_id if chat_id else TARGET_CHAT_ID
     try:
-        await bot.send_message(chat_id=TARGET_CHAT_ID, text=message, disable_web_page_preview=True)
+        await bot.send_message(chat_id=target, text=message, disable_web_page_preview=True)
     except Exception as e:
         print(f"Error sending message to Telegram: {e}")
