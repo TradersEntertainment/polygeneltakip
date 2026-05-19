@@ -2,7 +2,11 @@ import asyncio
 import time
 import aiohttp
 import logging
-from database import get_whales, is_activity_seen, record_activity
+from database import (
+    get_whales, is_activity_seen, record_activity,
+    load_seen_cache, is_activity_seen_fast, mark_activity_seen_fast,
+    batch_record_activities, get_whales_cached
+)
 from bot_engine import send_notification
 
 logging.basicConfig(level=logging.INFO)
@@ -125,7 +129,7 @@ def format_telegram_message(wallet: str, trade: dict, nickname: str = None) -> s
 async def fetch_recent_trades(session: aiohttp.ClientSession, address: str):
     params = {
         "user": address, 
-        "limit": 50,
+        "limit": 15,  # Reduced from 50 - we only care about recent trades
         "_": int(time.time() * 1000)
     }
     try:
@@ -148,13 +152,14 @@ async def process_wallet(session: aiohttp.ClientSession, whale: dict):
     trades = await fetch_recent_trades(session, address)
     if not trades:
         return
-        
+    
+    # FAST PATH: Check against in-memory cache (no DB calls!)
     new_trades = []
     for trade in trades:
         tx_hash = trade.get("transactionHash")
         if not tx_hash:
             continue
-        if await is_activity_seen(address, tx_hash):
+        if is_activity_seen_fast(address, tx_hash):
             break
         new_trades.append(trade)
         
@@ -163,34 +168,46 @@ async def process_wallet(session: aiohttp.ClientSession, whale: dict):
         
     logger.info(f"⚡ {len(new_trades)} new trades for {nickname} ({address[:6]}...)")
     
+    # Collect DB records for batch write
+    db_records = []
+    
     for trade in reversed(new_trades):
         try:
             tx_hash = trade.get("transactionHash")
             msg = format_telegram_message(address, trade, nickname)
             await send_notification(msg, chat_id=whale.get('chat_id'))
-            await record_activity(address, tx_hash, trade.get("timestamp"))
+            # Mark in RAM immediately (prevents duplicates in next poll)
+            mark_activity_seen_fast(address, tx_hash)
+            db_records.append((address, tx_hash, trade.get("timestamp")))
         except Exception as e:
             logger.error(f"Error processing trade {tx_hash}: {e}")
+    
+    # Single batch DB write instead of one per trade
+    await batch_record_activities(db_records)
 
 async def tracker_loop():
     logger.info("Tracker loop started")
-    # TWEAK: Increased connection limit from 10 to 50 so all 25 whales can be fetched truly in parallel
+    
+    # Load all seen tx hashes into RAM at startup
+    count = await load_seen_cache()
+    logger.info(f"📦 Loaded {count} seen tx hashes into memory cache")
+    
     connector = aiohttp.TCPConnector(limit=50, enable_cleanup_closed=True)
     timeout = aiohttp.ClientTimeout(total=10)
     
     async with aiohttp.ClientSession(connector=connector, timeout=timeout, headers=HEADERS) as session:
         # --- STARTUP CHECK ---
         try:
-            whales = await get_whales()
+            whales = await get_whales_cached()
             if whales:
                 first_whale = whales[0]
                 trades = await fetch_recent_trades(session, first_whale['address'])
                 if trades and len(trades) > 0:
                     last_trade = trades[0]
                     msg = format_telegram_message(first_whale['address'], last_trade, first_whale.get('name'))
-                    await send_notification(f"✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\nBağlantı testi başarılı. Balinanın son işlemi:\n\n{msg}")
+                    await send_notification(f"✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\n🐋 {len(whales)} balina takipte\n📦 {count} kayıtlı işlem hafızada\n⏱ Tarama aralığı: {POLL_INTERVAL}s\n\nSon işlem:\n{msg}")
                 else:
-                    await send_notification("✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\nBağlantı başarılı ancak geçmiş işlem bulunamadı.")
+                    await send_notification(f"✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\n🐋 {len(whales)} balina takipte\nBağlantı başarılı ancak geçmiş işlem bulunamadı.")
             else:
                 await send_notification("✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\nLütfen bir cüzdan adresi ekleyin.")
         except Exception as e:
@@ -200,12 +217,11 @@ async def tracker_loop():
         
         while True:
             try:
-                whales = await get_whales()
+                whales = await get_whales_cached()
                 if not whales:
                     await asyncio.sleep(POLL_INTERVAL)
                     continue
 
-                # These execute concurrently. Since limit is 50, all 25 will fire instantly.
                 tasks = [process_wallet(session, whale) for whale in whales]
                 await asyncio.gather(*tasks, return_exceptions=True)
                 

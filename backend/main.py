@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from database import init_db, get_whales, add_whale, remove_whale
+from database import init_db, get_whales, add_whale, remove_whale, invalidate_whales_cache
 from tracker import tracker_loop
 
 logging.basicConfig(level=logging.INFO)
@@ -62,6 +62,7 @@ async def api_add_whale(whale: WhaleCreate):
     try:
         success = await add_whale(whale.address, whale.name, whale.chat_id)
         if success:
+            invalidate_whales_cache()
             return {"success": True, "message": "Whale added successfully"}
         else:
             raise HTTPException(status_code=400, detail="Whale already exists")
@@ -74,6 +75,7 @@ async def api_add_whale(whale: WhaleCreate):
 async def api_remove_whale(address: str):
     try:
         success = await remove_whale(address)
+        invalidate_whales_cache()
         return {"success": success}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

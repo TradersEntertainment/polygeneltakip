@@ -97,3 +97,60 @@ async def record_activity(address: str, tx_hash: str, timestamp: str):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("INSERT OR IGNORE INTO activity_history (address, tx_hash, timestamp) VALUES (?, ?, ?)", (address, tx_hash, timestamp))
         await db.commit()
+
+# ============================================================
+# IN-MEMORY CACHE LAYER - eliminates per-trade DB round-trips
+# ============================================================
+import time as _time
+
+# Global in-memory set of "(address, tx_hash)" pairs
+_seen_cache: set = set()
+_seen_cache_loaded: bool = False
+
+# Whale list cache
+_whales_cache: list = []
+_whales_cache_ts: float = 0
+_WHALES_CACHE_TTL = 30  # refresh whale list from DB every 30 seconds
+
+async def load_seen_cache():
+    """Load all seen tx hashes into memory at startup. Call once."""
+    global _seen_cache, _seen_cache_loaded
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT address, tx_hash FROM activity_history") as cursor:
+            rows = await cursor.fetchall()
+            _seen_cache = {(row[0], row[1]) for row in rows}
+    _seen_cache_loaded = True
+    return len(_seen_cache)
+
+def is_activity_seen_fast(address: str, tx_hash: str) -> bool:
+    """Check seen status from RAM - instant, no DB call."""
+    return (address, tx_hash) in _seen_cache
+
+def mark_activity_seen_fast(address: str, tx_hash: str):
+    """Mark as seen in RAM immediately (DB write happens in batch)."""
+    _seen_cache.add((address, tx_hash))
+
+async def batch_record_activities(records: list):
+    """Write multiple (address, tx_hash, timestamp) in one DB transaction."""
+    if not records:
+        return
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.executemany(
+            "INSERT OR IGNORE INTO activity_history (address, tx_hash, timestamp) VALUES (?, ?, ?)",
+            records
+        )
+        await db.commit()
+
+async def get_whales_cached():
+    """Return whale list from cache, refresh from DB every 30 seconds."""
+    global _whales_cache, _whales_cache_ts
+    now = _time.time()
+    if not _whales_cache or (now - _whales_cache_ts) > _WHALES_CACHE_TTL:
+        _whales_cache = await get_whales()
+        _whales_cache_ts = now
+    return _whales_cache
+
+def invalidate_whales_cache():
+    """Call after add/remove whale to force refresh."""
+    global _whales_cache_ts
+    _whales_cache_ts = 0
