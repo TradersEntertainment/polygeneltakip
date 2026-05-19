@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 POLYMARKET_API_URL = "https://data-api.polymarket.com/activity"
-POLL_INTERVAL = 10
+POLL_INTERVAL = 5
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -174,7 +174,8 @@ async def process_wallet(session: aiohttp.ClientSession, whale: dict):
 
 async def tracker_loop():
     logger.info("Tracker loop started")
-    connector = aiohttp.TCPConnector(limit=10, enable_cleanup_closed=True)
+    # TWEAK: Increased connection limit from 10 to 50 so all 25 whales can be fetched truly in parallel
+    connector = aiohttp.TCPConnector(limit=50, enable_cleanup_closed=True)
     timeout = aiohttp.ClientTimeout(total=10)
     
     async with aiohttp.ClientSession(connector=connector, timeout=timeout, headers=HEADERS) as session:
@@ -204,6 +205,7 @@ async def tracker_loop():
                     await asyncio.sleep(POLL_INTERVAL)
                     continue
 
+                # These execute concurrently. Since limit is 50, all 25 will fire instantly.
                 tasks = [process_wallet(session, whale) for whale in whales]
                 await asyncio.gather(*tasks, return_exceptions=True)
                 
