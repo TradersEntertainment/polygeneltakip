@@ -15,6 +15,32 @@ logger = logging.getLogger(__name__)
 POLYMARKET_API_URL = "https://data-api.polymarket.com/activity"
 POLL_INTERVAL = 5
 
+# ============================================================
+# CRYPTO-ONLY FILTER - spor betlerini filtrele
+# Balinalar sinyal karıştırmak için spor betleri alıyor
+# Sadece crypto marketlerini takip ediyoruz
+# ============================================================
+CRYPTO_KEYWORDS = [
+    "bitcoin", "btc", "ethereum", "eth", "solana", "sol",
+    "xrp", "ripple", "dogecoin", "doge", "bnb", "binance",
+    "hype", "hyperliquid", "cardano", "ada", "polkadot", "dot",
+    "avalanche", "avax", "chainlink", "link", "polygon", "matic",
+    "litecoin", "ltc", "uniswap", "uni", "aave", "sui",
+    "toncoin", "ton", "near", "aptos", "apt", "arbitrum", "arb",
+    "optimism", "op", "celestia", "tia", "jupiter", "jup",
+    "pepe", "shiba", "shib", "bonk", "wif", "floki",
+    "crypto", "coin", "token", "defi",
+    # Polymarket crypto market patterns
+    "up or down", "above", "below",
+]
+
+def is_crypto_market(title: str) -> bool:
+    """Check if a market title is crypto-related."""
+    if not title:
+        return False
+    title_lower = title.lower()
+    return any(keyword in title_lower for keyword in CRYPTO_KEYWORDS)
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Accept": "application/json",
@@ -174,6 +200,16 @@ async def process_wallet(session: aiohttp.ClientSession, whale: dict):
     for trade in reversed(new_trades):
         try:
             tx_hash = trade.get("transactionHash")
+            title = str(trade.get("title") or "")
+            
+            # CRYPTO FILTER: Spor betlerini atla, sadece crypto market'leri bildir
+            if not is_crypto_market(title):
+                logger.info(f"🚫 SPOR/DİĞER BET FİLTRELENDİ: {title} ({nickname})")
+                # Yine de seen olarak işaretle ki tekrar işlenmesin
+                mark_activity_seen_fast(address, tx_hash)
+                db_records.append((address, tx_hash, trade.get("timestamp")))
+                continue
+            
             msg = format_telegram_message(address, trade, nickname)
             await send_notification(msg, chat_id=whale.get('chat_id'))
             # Mark in RAM immediately (prevents duplicates in next poll)
