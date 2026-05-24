@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from database import init_db, get_whales, add_whale, remove_whale, invalidate_whales_cache
 from tracker import tracker_loop
+from balance_tracker import balance_tracker_loop, get_all_balances
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,14 +21,17 @@ async def lifespan(app: FastAPI):
     
     # Start the tracker loop in the background
     tracker_task = asyncio.create_task(tracker_loop())
+    balance_task = asyncio.create_task(balance_tracker_loop())
     
     yield
     
     # Clean up on shutdown
     logger.info("Shutting down application...")
     tracker_task.cancel()
+    balance_task.cancel()
     try:
         await tracker_task
+        await balance_task
     except asyncio.CancelledError:
         pass
 
@@ -83,6 +87,15 @@ async def api_remove_whale(address: str):
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok"}
+
+@app.get("/api/balances")
+async def api_get_balances():
+    """Return cached USDC balances and portfolio values for all tracked whales."""
+    try:
+        balances = get_all_balances()
+        return {"balances": balances}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import os

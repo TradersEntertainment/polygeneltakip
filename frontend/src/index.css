@@ -281,3 +281,202 @@ h1, h2, h3 {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
+
+/* ============================================================
+   STATS BAR
+   ============================================================ */
+.stats-bar {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  flex: 1;
+  min-width: 140px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 18px 22px;
+  text-align: center;
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.stat-value.cyan { color: var(--accent-cyan); }
+.stat-value.purple { color: var(--accent-purple); }
+.stat-value.danger { color: var(--accent-red); }
+
+/* ============================================================
+   CHAT GROUP - aynı chat_id'li balinaları grupla
+   ============================================================ */
+
+/* Renk paleti: her gruba farklı renk */
+.chat-group {
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 16px;
+  margin-bottom: 18px;
+  background: rgba(255, 255, 255, 0.015);
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.chat-group:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.chat-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.chat-group-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chat-group-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.chat-group-count {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  margin-left: auto;
+}
+
+/* Color variations for groups */
+.chat-group.color-0 { border-color: rgba(0, 240, 255, 0.2); }
+.chat-group.color-0 .chat-group-dot { background: #00f0ff; box-shadow: 0 0 8px rgba(0, 240, 255, 0.5); }
+.chat-group.color-0 .chat-group-label { color: rgba(0, 240, 255, 0.7); }
+
+.chat-group.color-1 { border-color: rgba(138, 43, 226, 0.25); }
+.chat-group.color-1 .chat-group-dot { background: #8a2be2; box-shadow: 0 0 8px rgba(138, 43, 226, 0.5); }
+.chat-group.color-1 .chat-group-label { color: rgba(138, 43, 226, 0.8); }
+
+.chat-group.color-2 { border-color: rgba(255, 165, 0, 0.2); }
+.chat-group.color-2 .chat-group-dot { background: #ffa500; box-shadow: 0 0 8px rgba(255, 165, 0, 0.5); }
+.chat-group.color-2 .chat-group-label { color: rgba(255, 165, 0, 0.8); }
+
+.chat-group.color-3 { border-color: rgba(0, 255, 136, 0.2); }
+.chat-group.color-3 .chat-group-dot { background: #00ff88; box-shadow: 0 0 8px rgba(0, 255, 136, 0.5); }
+.chat-group.color-3 .chat-group-label { color: rgba(0, 255, 136, 0.8); }
+
+.chat-group.color-4 { border-color: rgba(255, 51, 102, 0.2); }
+.chat-group.color-4 .chat-group-dot { background: #ff3366; box-shadow: 0 0 8px rgba(255, 51, 102, 0.5); }
+.chat-group.color-4 .chat-group-label { color: rgba(255, 51, 102, 0.8); }
+
+.chat-group.color-5 { border-color: rgba(255, 215, 0, 0.2); }
+.chat-group.color-5 .chat-group-dot { background: #ffd700; box-shadow: 0 0 8px rgba(255, 215, 0, 0.5); }
+.chat-group.color-5 .chat-group-label { color: rgba(255, 215, 0, 0.8); }
+
+.chat-group.color-6 { border-color: rgba(64, 224, 208, 0.2); }
+.chat-group.color-6 .chat-group-dot { background: #40e0d0; box-shadow: 0 0 8px rgba(64, 224, 208, 0.5); }
+.chat-group.color-6 .chat-group-label { color: rgba(64, 224, 208, 0.8); }
+
+/* Ungrouped whales (no chat_id) */
+.chat-group.color-ungrouped { border-color: rgba(255, 255, 255, 0.06); }
+.chat-group.color-ungrouped .chat-group-dot { background: rgba(255, 255, 255, 0.3); box-shadow: none; }
+.chat-group.color-ungrouped .chat-group-label { color: rgba(255, 255, 255, 0.35); }
+
+.chat-group .whale-list {
+  gap: 10px;
+}
+
+.chat-group .whale-card {
+  border-radius: 12px;
+  padding: 16px;
+}
+
+/* ============================================================
+   BALANCE BADGES
+   ============================================================ */
+.balance-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.balance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.balance-ok {
+  background: rgba(0, 255, 136, 0.1);
+  color: #00ff88;
+  border: 1px solid rgba(0, 255, 136, 0.2);
+}
+
+.balance-warning {
+  background: rgba(255, 165, 0, 0.1);
+  color: #ffa500;
+  border: 1px solid rgba(255, 165, 0, 0.2);
+}
+
+.balance-danger {
+  background: rgba(255, 51, 102, 0.1);
+  color: #ff3366;
+  border: 1px solid rgba(255, 51, 102, 0.2);
+  animation: pulse-danger 2s infinite;
+}
+
+@keyframes pulse-danger {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 51, 102, 0); }
+  50% { box-shadow: 0 0 8px 0 rgba(255, 51, 102, 0.3); }
+}
+
+.balance-portfolio {
+  background: rgba(138, 43, 226, 0.1);
+  color: #b366ff;
+  border: 1px solid rgba(138, 43, 226, 0.2);
+}
+
+.balance-loading {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Alert state for whale cards with low balance */
+.whale-card-alert {
+  border-color: rgba(255, 51, 102, 0.25) !important;
+  background: rgba(255, 51, 102, 0.03) !important;
+}

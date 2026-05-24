@@ -10,8 +10,16 @@ interface Whale {
   chat_id?: string;
 }
 
+interface BalanceInfo {
+  usdc_balance: number;
+  portfolio_value: number;
+  last_updated: number;
+  nickname: string;
+}
+
 function App() {
   const [whales, setWhales] = useState<Whale[]>([]);
+  const [balances, setBalances] = useState<Record<string, BalanceInfo>>({});
   const [address, setAddress] = useState('');
   const [name, setName] = useState('');
   const [chatId, setChatId] = useState('');
@@ -19,7 +27,7 @@ function App() {
 
   const API_BASE = import.meta.env.VITE_API_URL || '';
 
-  // Load from API
+  // Load whales from API
   const fetchWhales = async () => {
     try {
       const response = await fetch(`${API_BASE}/api/whales`);
@@ -30,11 +38,27 @@ function App() {
     }
   };
 
+  // Load balances from API
+  const fetchBalances = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/balances`);
+      const data = await response.json();
+      setBalances(data.balances || {});
+    } catch (e) {
+      console.error('Error fetching balances', e);
+    }
+  };
+
   useEffect(() => {
     fetchWhales();
-    // Optional: poll every 10 seconds for updates
-    const interval = setInterval(fetchWhales, 10000);
-    return () => clearInterval(interval);
+    fetchBalances();
+    // Poll whales every 10s, balances every 30s
+    const whaleInterval = setInterval(fetchWhales, 10000);
+    const balanceInterval = setInterval(fetchBalances, 30000);
+    return () => {
+      clearInterval(whaleInterval);
+      clearInterval(balanceInterval);
+    };
   }, []);
 
   const showToast = (message: string) => {
@@ -88,12 +112,53 @@ function App() {
     }
   };
 
+  const formatBalance = (value: number): string => {
+    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
+    return `$${value.toFixed(2)}`;
+  };
+
+  const getBalanceClass = (usdc: number): string => {
+    if (usdc < 1000) return 'balance-danger';
+    if (usdc < 5000) return 'balance-warning';
+    return 'balance-ok';
+  };
+
+  // Calculate total stats
+  const totalUSDC = Object.values(balances).reduce((sum, b) => sum + (b.usdc_balance || 0), 0);
+  const totalPortfolio = Object.values(balances).reduce((sum, b) => sum + (b.portfolio_value || 0), 0);
+  const lowBalanceCount = Object.values(balances).filter(b => b.usdc_balance < 1000).length;
+
   return (
     <div className="container">
       <header className="header">
         <h1 className="gradient-text">Poly Whale Tracker</h1>
         <p>Polymarket'teki balinaların cüzdan hareketlerini canlı takip edin</p>
       </header>
+
+      {/* Stats Bar */}
+      {Object.keys(balances).length > 0 && (
+        <div className="stats-bar">
+          <div className="stat-item">
+            <span className="stat-label">Toplam USDC</span>
+            <span className="stat-value cyan">{formatBalance(totalUSDC)}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">Toplam Portfolio</span>
+            <span className="stat-value purple">{formatBalance(totalPortfolio)}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">Takip Edilen</span>
+            <span className="stat-value">{whales.length} 🐋</span>
+          </div>
+          {lowBalanceCount > 0 && (
+            <div className="stat-item">
+              <span className="stat-label">Düşük Bakiye</span>
+              <span className="stat-value danger">{lowBalanceCount} ⚠️</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="dashboard-grid">
         {/* Left Column: Add Whale Form */}
@@ -157,20 +222,53 @@ function App() {
               <h3>Henüz takip edilen balina yok</h3>
               <p>Sol taraftaki formu kullanarak ilk balinanızı ekleyin.</p>
             </div>
-          ) : (
-            <div className="whale-list">
-              {whales.map((whale) => (
-                <div key={whale.id} className="whale-card">
+          ) : (() => {
+            // Group whales by chat_id
+            const groups: Record<string, Whale[]> = {};
+            const ungrouped: Whale[] = [];
+            
+            whales.forEach((whale) => {
+              if (whale.chat_id) {
+                if (!groups[whale.chat_id]) groups[whale.chat_id] = [];
+                groups[whale.chat_id].push(whale);
+              } else {
+                ungrouped.push(whale);
+              }
+            });
+
+            const chatIds = Object.keys(groups);
+
+            const renderWhaleCard = (whale: Whale) => {
+              const bal = balances[whale.address.toLowerCase()] || balances[whale.address];
+              const hasBalance = bal !== undefined;
+              const usdcBalance = bal?.usdc_balance ?? 0;
+              const portfolioValue = bal?.portfolio_value ?? 0;
+
+              return (
+                <div key={whale.id} className={`whale-card ${hasBalance && usdcBalance < 1000 ? 'whale-card-alert' : ''}`}>
                   <div className="whale-info">
                     <h3>
                       <span className="status-indicator" title="Aktif olarak takip ediliyor"></span>
                       {whale.name}
                     </h3>
                     <p>{whale.address}</p>
-                    <div style={{ fontSize: '0.75rem', marginTop: '5px', color: 'rgba(255,255,255,0.4)' }}>
-                      Eklendi: {whale.addedAt}
-                      {whale.chat_id && <span style={{ marginLeft: '10px', color: 'var(--accent-cyan)' }}>📱 {whale.chat_id}</span>}
-                    </div>
+                    
+                    {hasBalance ? (
+                      <div className="balance-row">
+                        <span className={`balance-badge ${getBalanceClass(usdcBalance)}`}>
+                          💰 {formatBalance(usdcBalance)} USDC
+                        </span>
+                        <span className="balance-badge balance-portfolio">
+                          📊 {formatBalance(portfolioValue)} Portfolio
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="balance-row">
+                        <span className="balance-badge balance-loading">
+                          ⏳ Bakiye yükleniyor...
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className="whale-actions">
                     <button 
@@ -182,9 +280,41 @@ function App() {
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            };
+
+            return (
+              <div>
+                {/* Grouped whales by chat_id */}
+                {chatIds.map((chatId, groupIndex) => (
+                  <div key={chatId} className={`chat-group color-${groupIndex % 7}`}>
+                    <div className="chat-group-header">
+                      <div className="chat-group-dot"></div>
+                      <span className="chat-group-label">📱 {chatId}</span>
+                      <span className="chat-group-count">{groups[chatId].length} balina</span>
+                    </div>
+                    <div className="whale-list">
+                      {groups[chatId].map(renderWhaleCard)}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Ungrouped whales (no chat_id) */}
+                {ungrouped.length > 0 && (
+                  <div className="chat-group color-ungrouped">
+                    <div className="chat-group-header">
+                      <div className="chat-group-dot"></div>
+                      <span className="chat-group-label">Gruplanmamış (Varsayılan Chat)</span>
+                      <span className="chat-group-count">{ungrouped.length} balina</span>
+                    </div>
+                    <div className="whale-list">
+                      {ungrouped.map(renderWhaleCard)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
