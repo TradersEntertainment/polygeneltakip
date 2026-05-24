@@ -83,6 +83,21 @@ async def add_whale(address: str, name: str, chat_id: str = None):
             return False # Already exists
 
 async def remove_whale(address: str):
+    """Set whale status to paused so we stop notifications but keep them in frontend."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE whales SET status = 'paused' WHERE address = ?", (address,))
+        await db.commit()
+        return True
+
+async def reactivate_whale(address: str):
+    """Reactivate a paused whale back to tracking status."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE whales SET status = 'tracking' WHERE address = ?", (address,))
+        await db.commit()
+        return True
+
+async def delete_whale_permanently(address: str):
+    """Permanently delete a whale from the database."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM whales WHERE address = ?", (address,))
         await db.commit()

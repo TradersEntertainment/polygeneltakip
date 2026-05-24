@@ -133,8 +133,8 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
     
     # If first time, just record (no notification)
     if prev is None:
-        # İlk kayıtta da $1000 altındaysa bildir
-        if usdc_balance >= 0 and usdc_balance < LOW_BALANCE_THRESHOLD:
+        # İlk kayıtta da $1000 altındaysa ve aktif takip ediliyorsa bildir
+        if usdc_balance >= 0 and usdc_balance < LOW_BALANCE_THRESHOLD and whale.get('status', 'tracking') == 'tracking':
             _balance_cache[address]["low_balance_notified"] = True
             msg = (
                 f"🚨 <b>DÜŞÜK BAKİYE TESPİT EDİLDİ</b>\n"
@@ -149,8 +149,8 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
     
     prev_usdc = prev.get("usdc_balance", 0)
     
-    # SADECE bakiye $1000 altına düşünce bildir (ve daha önce bildirilmemişse)
-    if usdc_balance >= 0 and usdc_balance < LOW_BALANCE_THRESHOLD and not was_notified:
+    # SADECE bakiye $1000 altına düşünce ve aktif takip ediliyorsa bildir (ve daha önce bildirilmemişse)
+    if usdc_balance >= 0 and usdc_balance < LOW_BALANCE_THRESHOLD and not was_notified and whale.get('status', 'tracking') == 'tracking':
         _balance_cache[address]["low_balance_notified"] = True
         msg = (
             f"🚨 <b>BAKİYE ${LOW_BALANCE_THRESHOLD:,} ALTINA DÜŞTÜ!</b>\n"

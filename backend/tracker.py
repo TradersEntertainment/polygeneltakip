@@ -245,17 +245,18 @@ async def tracker_loop():
         # --- STARTUP CHECK ---
         try:
             whales = await get_whales_cached()
-            if whales:
-                first_whale = whales[0]
+            active_whales = [w for w in whales if w.get('status', 'tracking') == 'tracking']
+            if active_whales:
+                first_whale = active_whales[0]
                 trades = await fetch_recent_trades(session, first_whale['address'])
                 if trades and len(trades) > 0:
                     last_trade = trades[0]
                     msg = format_telegram_message(first_whale['address'], last_trade, first_whale.get('name'))
-                    await send_notification(f"✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\n🐋 {len(whales)} balina takipte\n📦 {count} kayıtlı işlem hafızada\n⏱ Tarama aralığı: {POLL_INTERVAL}s\n\nSon işlem:\n{msg}")
+                    await send_notification(f"✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\n🐋 {len(active_whales)} balina takipte\n📦 {count} kayıtlı işlem hafızada\n⏱ Tarama aralığı: {POLL_INTERVAL}s\n\nSon işlem:\n{msg}")
                 else:
-                    await send_notification(f"✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\n🐋 {len(whales)} balina takipte\nBağlantı başarılı ancak geçmiş işlem bulunamadı.")
+                    await send_notification(f"✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\n🐋 {len(active_whales)} balina takipte\nBağlantı başarılı ancak geçmiş işlem bulunamadı.")
             else:
-                await send_notification("✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\nLütfen bir cüzdan adresi ekleyin.")
+                await send_notification("✅ <b>SİSTEM BAŞARIYLA BAŞLATILDI!</b>\nLütfen takip için aktif bir cüzdan adresi ekleyin.")
         except Exception as e:
             logger.error(f"Startup check failed: {e}")
             await send_notification(f"⚠️ <b>SİSTEM BAŞLATILDI ANCAK API BAĞLANTISINDA SORUN VAR!</b>\n{e}")
@@ -264,11 +265,12 @@ async def tracker_loop():
         while True:
             try:
                 whales = await get_whales_cached()
-                if not whales:
+                active_whales = [w for w in whales if w.get('status', 'tracking') == 'tracking']
+                if not active_whales:
                     await asyncio.sleep(POLL_INTERVAL)
                     continue
 
-                tasks = [process_wallet(session, whale) for whale in whales]
+                tasks = [process_wallet(session, whale) for whale in active_whales]
                 await asyncio.gather(*tasks, return_exceptions=True)
                 
                 await asyncio.sleep(POLL_INTERVAL)

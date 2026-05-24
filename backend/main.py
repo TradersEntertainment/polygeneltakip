@@ -5,7 +5,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from database import init_db, get_whales, add_whale, remove_whale, invalidate_whales_cache
+from database import (
+    init_db, get_whales, add_whale, remove_whale, 
+    reactivate_whale, delete_whale_permanently, invalidate_whales_cache
+)
 from tracker import tracker_loop
 from balance_tracker import balance_tracker_loop, get_all_balances
 
@@ -77,8 +80,29 @@ async def api_add_whale(whale: WhaleCreate):
 
 @app.delete("/api/whales/{address}")
 async def api_remove_whale(address: str):
+    """Pause whale notifications (soft delete)."""
     try:
         success = await remove_whale(address)
+        invalidate_whales_cache()
+        return {"success": success}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/whales/{address}/reactivate")
+async def api_reactivate_whale(address: str):
+    """Reactivate paused whale notifications."""
+    try:
+        success = await reactivate_whale(address)
+        invalidate_whales_cache()
+        return {"success": success}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/whales/{address}/permanent")
+async def api_permanent_remove_whale(address: str):
+    """Permanently delete a whale from database."""
+    try:
+        success = await delete_whale_permanently(address)
         invalidate_whales_cache()
         return {"success": success}
     except Exception as e:

@@ -100,11 +100,39 @@ function App() {
     }
   };
 
-  const handleRemove = async (addressToRemove: string) => {
+  const handleRemove = async (addressToRemove: string, name: string) => {
+    const confirmed = window.confirm(`"${name}" isimli balinanın takibini durdurmak istediğinize emin misiniz? (Bildirim göndermeyi kesecektir.)`);
+    if (!confirmed) return;
     try {
       const response = await fetch(`${API_BASE}/api/whales/${addressToRemove}`, { method: 'DELETE' });
       if (response.ok) {
-        showToast('Balina takipten çıkarıldı.');
+        showToast('Balina takibi durduruldu. (Silinenler listesine alındı)');
+        fetchWhales();
+      }
+    } catch (e) {
+      showToast('Hata oluştu!');
+    }
+  };
+
+  const handleReactivate = async (addressToReactivate: string, name: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/whales/${addressToReactivate}/reactivate`, { method: 'POST' });
+      if (response.ok) {
+        showToast(`"${name}" yeniden aktif takibe alındı! 🐋`);
+        fetchWhales();
+      }
+    } catch (e) {
+      showToast('Hata oluştu!');
+    }
+  };
+
+  const handleRemovePermanent = async (addressToRemove: string, name: string) => {
+    const confirmed = window.confirm(`"${name}" isimli balinayı veritabanından TAMAMEN silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`);
+    if (!confirmed) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/whales/${addressToRemove}/permanent`, { method: 'DELETE' });
+      if (response.ok) {
+        showToast('Balina tamamen silindi.');
         fetchWhales();
       }
     } catch (e) {
@@ -134,10 +162,15 @@ function App() {
     return 'balance-ok';
   };
 
-  // Calculate total stats
-  const totalUSDC = Object.values(balances).reduce((sum, b) => sum + (b.usdc_balance || 0), 0);
-  const totalPortfolio = Object.values(balances).reduce((sum, b) => sum + (b.portfolio_value || 0), 0);
-  const lowBalanceCount = Object.values(balances).filter(b => b.usdc_balance < 1000).length;
+  // Calculate total stats for active whales only
+  const activeWhalesList = whales.filter(w => w.status !== 'paused');
+  const activeBalances = Object.entries(balances)
+    .filter(([addr]) => whales.some(w => w.address.toLowerCase() === addr && w.status !== 'paused'))
+    .map(([, b]) => b);
+
+  const totalUSDC = activeBalances.reduce((sum, b) => sum + (b.usdc_balance || 0), 0);
+  const totalPortfolio = activeBalances.reduce((sum, b) => sum + (b.portfolio_value || 0), 0);
+  const lowBalanceCount = activeBalances.filter(b => b.usdc_balance < 1000).length;
 
   return (
     <div className="container">
@@ -159,7 +192,7 @@ function App() {
           </div>
           <div className="stat-item">
             <span className="stat-label">Takip Edilen</span>
-            <span className="stat-value">{whales.length} 🐋</span>
+            <span className="stat-value">{activeWhalesList.length} 🐋</span>
           </div>
           {lowBalanceCount > 0 && (
             <div className="stat-item">
@@ -224,20 +257,20 @@ function App() {
 
         {/* Right Column: Tracked Whales List */}
         <div className="glass-panel">
-          <h2 style={{ marginBottom: '25px', color: 'var(--accent-purple)' }}>Takip Edilen Balinalar ({whales.length})</h2>
+          <h2 style={{ marginBottom: '25px', color: 'var(--accent-purple)' }}>Takip Edilen Balinalar ({activeWhalesList.length})</h2>
           
-          {whales.length === 0 ? (
+          {activeWhalesList.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state-icon">🐋</div>
-              <h3>Henüz takip edilen balina yok</h3>
-              <p>Sol taraftaki formu kullanarak ilk balinanızı ekleyin.</p>
+              <h3>Henüz aktif takip edilen balina yok</h3>
+              <p>Sol taraftaki formu kullanarak ilk balinanızı ekleyin veya aşağıdaki durdurulan balinaları aktifleştirin.</p>
             </div>
           ) : (() => {
-            // Group whales by chat_id
+            // Group active whales by chat_id
             const groups: Record<string, Whale[]> = {};
             const ungrouped: Whale[] = [];
             
-            whales.forEach((whale) => {
+            activeWhalesList.forEach((whale) => {
               if (whale.chat_id) {
                 if (!groups[whale.chat_id]) groups[whale.chat_id] = [];
                 groups[whale.chat_id].push(whale);
@@ -262,9 +295,9 @@ function App() {
                       {whale.name}
                     </h3>
                     <button 
-                      onClick={() => handleRemove(whale.address)}
+                      onClick={() => handleRemove(whale.address, whale.name)}
                       className="whale-delete-btn"
-                      title="Takipten Çıkar"
+                      title="Takibi Durdur / Bildirim Kapat"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="3 6 5 6 21 6"></polyline>
@@ -274,13 +307,24 @@ function App() {
                   </div>
                   
                   <div className="whale-card-body">
-                    <span 
-                      className="whale-address" 
-                      onClick={() => copyToClipboard(whale.address)} 
-                      title="Cüzdan Adresini Kopyala"
-                    >
-                      {truncateAddress(whale.address)} 📋
-                    </span>
+                    <div className="card-links-row">
+                      <span 
+                        className="whale-address" 
+                        onClick={() => copyToClipboard(whale.address)} 
+                        title="Cüzdan Adresini Kopyala"
+                      >
+                        {truncateAddress(whale.address)} 📋
+                      </span>
+                      <a 
+                        href={`https://www.betmoar.fun/profile/${whale.address}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="betmoar-link"
+                        title="Betmoar Profilini İncele"
+                      >
+                        🔍 Betmoar
+                      </a>
+                    </div>
                     
                     {hasBalance ? (
                       <div className="balance-row">
@@ -337,6 +381,97 @@ function App() {
           })()}
         </div>
       </div>
+
+      {/* Paused/Deleted Whales Section */}
+      {pausedWhales.length > 0 && (
+        <div className="glass-panel" style={{ marginTop: '30px' }}>
+          <h2 style={{ marginBottom: '15px', color: 'var(--text-secondary)' }}>
+            🔇 Takibi Durdurulan / Silinen Balinalar ({pausedWhales.length})
+          </h2>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+            Aşağıdaki cüzdanlar için Telegram bildirimleri <strong>gönderilmez</strong>. Dilediğinizde yeniden takibe alabilir veya kalıcı olarak silebilirsiniz.
+          </p>
+          
+          <div className="whale-grid">
+            {pausedWhales.map((whale) => {
+              const bal = balances[whale.address.toLowerCase()] || balances[whale.address];
+              const hasBalance = bal !== undefined;
+              const usdcBalance = bal?.usdc_balance ?? 0;
+              const portfolioValue = bal?.portfolio_value ?? 0;
+
+              return (
+                <div key={whale.id} className="whale-card whale-card-paused">
+                  <div className="whale-card-header">
+                    <h3 className="whale-card-title">
+                      <span className="status-indicator status-paused" title="Takip durduruldu"></span>
+                      {whale.name}
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button 
+                        onClick={() => handleReactivate(whale.address, whale.name)}
+                        className="whale-reactivate-btn"
+                        title="Yeniden Aktifleştir"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                        </svg>
+                      </button>
+                      <button 
+                        onClick={() => handleRemovePermanent(whale.address, whale.name)}
+                        className="whale-delete-btn"
+                        title="Kalıcı Olarak Veritabanından Sil"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="whale-card-body">
+                    <div className="card-links-row">
+                      <span 
+                        className="whale-address" 
+                        onClick={() => copyToClipboard(whale.address)} 
+                        title="Cüzdan Adresini Kopyala"
+                      >
+                        {truncateAddress(whale.address)} 📋
+                      </span>
+                      <a 
+                        href={`https://www.betmoar.fun/profile/${whale.address}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="betmoar-link"
+                        title="Betmoar Profilini İncele"
+                      >
+                        🔍 Betmoar
+                      </a>
+                    </div>
+                    
+                    {hasBalance ? (
+                      <div className="balance-row">
+                        <span className={`balance-badge ${getBalanceClass(usdcBalance)}`}>
+                          💰 {formatBalance(usdcBalance)}
+                        </span>
+                        <span className="balance-badge balance-portfolio">
+                          📊 {formatBalance(portfolioValue)}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="balance-row">
+                        <span className="balance-badge balance-loading">
+                          ⏳ Yükleniyor...
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {toast.visible && (
         <div className="toast-container">

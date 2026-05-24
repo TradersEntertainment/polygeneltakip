@@ -539,3 +539,75 @@ h1, h2, h3 {
   border-color: rgba(255, 51, 102, 0.25) !important;
   background: rgba(255, 51, 102, 0.03) !important;
 }
+
+/* ============================================================
+   CARD LINKS ROW & BETMOAR LINKS
+   ============================================================ */
+.card-links-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+}
+
+.betmoar-link {
+  font-size: 0.72rem;
+  color: var(--accent-purple);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(138, 43, 226, 0.06);
+  border: 1px solid rgba(138, 43, 226, 0.12);
+}
+
+.betmoar-link:hover {
+  background: rgba(138, 43, 226, 0.18);
+  color: #b366ff;
+  border-color: rgba(138, 43, 226, 0.35);
+  transform: translateY(-0.5px);
+}
+
+/* Paused / Silinen Balina Stilleri */
+.whale-card-paused {
+  opacity: 0.75;
+  border-color: rgba(255, 255, 255, 0.03);
+}
+
+.whale-card-paused:hover {
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.status-indicator.status-paused {
+  background: var(--text-secondary);
+  box-shadow: none;
+}
+
+.whale-reactivate-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.whale-reactivate-btn:hover {
+  background: rgba(0, 255, 136, 0.12);
+  color: var(--accent-green);
+  opacity: 1;
+  transform: scale(1.05);
+}
