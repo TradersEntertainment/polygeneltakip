@@ -164,6 +164,7 @@ function App() {
 
   // Calculate total stats for active whales only
   const activeWhalesList = whales.filter(w => w.status !== 'paused');
+  const pausedWhales = whales.filter(w => w.status === 'paused');
   const activeBalances = Object.entries(balances)
     .filter(([addr]) => whales.some(w => w.address.toLowerCase() === addr && w.status !== 'paused'))
     .map(([, b]) => b);
