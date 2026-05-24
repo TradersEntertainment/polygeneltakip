@@ -112,6 +112,16 @@ function App() {
     }
   };
 
+  const truncateAddress = (addr: string): string => {
+    if (!addr) return '';
+    return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    showToast('Cüzdan adresi kopyalandı! 📋');
+  };
+
   const formatBalance = (value: number): string => {
     if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
     if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
@@ -246,38 +256,48 @@ function App() {
 
               return (
                 <div key={whale.id} className={`whale-card ${hasBalance && usdcBalance < 1000 ? 'whale-card-alert' : ''}`}>
-                  <div className="whale-info">
-                    <h3>
+                  <div className="whale-card-header">
+                    <h3 className="whale-card-title">
                       <span className="status-indicator" title="Aktif olarak takip ediliyor"></span>
                       {whale.name}
                     </h3>
-                    <p>{whale.address}</p>
+                    <button 
+                      onClick={() => handleRemove(whale.address)}
+                      className="whale-delete-btn"
+                      title="Takipten Çıkar"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  <div className="whale-card-body">
+                    <span 
+                      className="whale-address" 
+                      onClick={() => copyToClipboard(whale.address)} 
+                      title="Cüzdan Adresini Kopyala"
+                    >
+                      {truncateAddress(whale.address)} 📋
+                    </span>
                     
                     {hasBalance ? (
                       <div className="balance-row">
                         <span className={`balance-badge ${getBalanceClass(usdcBalance)}`}>
-                          💰 {formatBalance(usdcBalance)} USDC
+                          💰 {formatBalance(usdcBalance)}
                         </span>
                         <span className="balance-badge balance-portfolio">
-                          📊 {formatBalance(portfolioValue)} Portfolio
+                          📊 {formatBalance(portfolioValue)}
                         </span>
                       </div>
                     ) : (
                       <div className="balance-row">
                         <span className="balance-badge balance-loading">
-                          ⏳ Bakiye yükleniyor...
+                          ⏳ Yükleniyor...
                         </span>
                       </div>
                     )}
-                  </div>
-                  <div className="whale-actions">
-                    <button 
-                      onClick={() => handleRemove(whale.address)}
-                      className="btn btn-danger"
-                      style={{ padding: '8px 15px', fontSize: '0.9rem' }}
-                    >
-                      Sil
-                    </button>
                   </div>
                 </div>
               );
@@ -293,7 +313,7 @@ function App() {
                       <span className="chat-group-label">📱 {chatId}</span>
                       <span className="chat-group-count">{groups[chatId].length} balina</span>
                     </div>
-                    <div className="whale-list">
+                    <div className="whale-grid">
                       {groups[chatId].map(renderWhaleCard)}
                     </div>
                   </div>
@@ -307,7 +327,7 @@ function App() {
                       <span className="chat-group-label">Gruplanmamış (Varsayılan Chat)</span>
                       <span className="chat-group-count">{ungrouped.length} balina</span>
                     </div>
-                    <div className="whale-list">
+                    <div className="whale-grid">
                       {ungrouped.map(renderWhaleCard)}
                     </div>
                   </div>
