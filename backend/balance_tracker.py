@@ -16,10 +16,17 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 # Polygon RPC (public endpoint, can be replaced with private one)
-POLYGON_RPC_URL = os.getenv("POLYGON_RPC_URL", "https://polygon-rpc.com")
+# Polygon RPC URLs (stable public endpoints with fallback support)
+POLYGON_RPCS = [
+    os.getenv("POLYGON_RPC_URL", "https://polygon-bor-rpc.publicnode.com"),
+    "https://polygon.llamarpc.com",
+    "https://polygon-mainnet.public.blastapi.io",
+    "https://rpc.ankr.com/polygon",
+    "https://1rpc.io/matic"
+]
 
-# USDC.e contract on Polygon (Polymarket uses this)
-USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+# pUSD (Polymarket USD) contract on Polygon (Polymarket uses this for account balances)
+USDC_CONTRACT = "0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb"
 
 # Polymarket Data API
 POLYMARKET_VALUE_URL = "https://data-api.polymarket.com/value"
@@ -35,7 +42,7 @@ _balance_cache: dict = {}
 
 
 async def fetch_usdc_balance(session: aiohttp.ClientSession, address: str) -> float:
-    """Fetch USDC balance from Polygon chain via RPC."""
+    """Fetch pUSD (Polymarket USD) balance from Polygon chain via RPC with fallbacks."""
     # balanceOf(address) function selector: 0x70a08231
     # Pad address to 32 bytes
     clean_address = address.lower().replace("0x", "").zfill(64)
@@ -54,20 +61,23 @@ async def fetch_usdc_balance(session: aiohttp.ClientSession, address: str) -> fl
         "id": 1
     }
     
-    try:
-        async with session.post(POLYGON_RPC_URL, json=payload) as response:
-            if response.status == 200:
-                result = await response.json()
-                hex_balance = result.get("result", "0x0")
-                # USDC has 6 decimals
-                balance = int(hex_balance, 16) / 1e6
-                return balance
-            else:
-                logger.error(f"RPC error {response.status} for {address}")
-                return -1
-    except Exception as e:
-        logger.error(f"USDC balance fetch error for {address}: {e}")
-        return -1
+    # Try multiple RPCs to ensure reliability
+    for rpc_url in POLYGON_RPCS:
+        try:
+            async with session.post(rpc_url, json=payload, timeout=5) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    hex_balance = result.get("result", "0x0")
+                    # pUSD has 6 decimals
+                    balance = int(hex_balance, 16) / 1e6
+                    return balance
+                else:
+                    logger.warning(f"RPC {rpc_url} returned status {response.status} for {address}")
+        except Exception as e:
+            logger.warning(f"Failed to fetch balance from RPC {rpc_url} for {address}: {e}")
+            
+    logger.error(f"All Polygon RPCs failed to fetch balance for {address}")
+    return -1
 
 
 async def fetch_portfolio_value(session: aiohttp.ClientSession, address: str) -> float:
