@@ -148,7 +148,31 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
         return
     
     prev_usdc = prev.get("usdc_balance", 0)
+    prev_portfolio = prev.get("portfolio_value", 0)
+    prev_total = prev_usdc + prev_portfolio
+    current_total = usdc_balance + portfolio_value
     
+    # 💰 PARA YATIRMA TESPİTİ: 
+    # Düşük bakiyeli (USDC < 1000) bir balina hesaba yeni para yatırırsa ve toplam değeri (USDC + Portfolio) $3000'ı geçerse bildir
+    if (
+        prev_usdc < LOW_BALANCE_THRESHOLD and
+        usdc_balance > prev_usdc and
+        current_total >= 3000 and
+        prev_total < 3000 and
+        whale.get('status', 'tracking') == 'tracking'
+    ):
+        _balance_cache[address]["low_balance_notified"] = False  # Reset low balance flag immediately
+        msg = (
+            f"💰 <b>YENİ PARA YATIRMA TESPİT EDİLDİ!</b>\n"
+            f"👤 {nickname}\n"
+            f"💸 USDC: ${prev_usdc:,.2f} → <b>${usdc_balance:,.2f}</b>\n"
+            f"🎯 Portfolio: ${portfolio_value:,.2f}\n"
+            f"✨ Toplam Değer: <b>${current_total:,.2f}</b> (USDC + Portfolio)\n"
+            f"✅ Balina hesaba yeni fon yatırdı!"
+        )
+        await send_notification(msg, chat_id=whale.get('chat_id'))
+        logger.info(f"💰 Deposit detected: {nickname} USDC={usdc_balance:.2f} Total={current_total:.2f}")
+
     # SADECE bakiye $1000 altına düşünce ve aktif takip ediliyorsa bildir (ve daha önce bildirilmemişse)
     if usdc_balance >= 0 and usdc_balance < LOW_BALANCE_THRESHOLD and not was_notified and whale.get('status', 'tracking') == 'tracking':
         _balance_cache[address]["low_balance_notified"] = True
