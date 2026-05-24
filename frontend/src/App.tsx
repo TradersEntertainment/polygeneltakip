@@ -267,20 +267,47 @@ function App() {
               <p>Sol taraftaki formu kullanarak ilk balinanızı ekleyin veya aşağıdaki durdurulan balinaları aktifleştirin.</p>
             </div>
           ) : (() => {
-            // Group active whales by chat_id
-            const groups: Record<string, Whale[]> = {};
-            const ungrouped: Whale[] = [];
-            
+            // Group active whales by chat_id or 'ungrouped'
+            const groupMap: Record<string, Whale[]> = {};
             activeWhalesList.forEach((whale) => {
-              if (whale.chat_id) {
-                if (!groups[whale.chat_id]) groups[whale.chat_id] = [];
-                groups[whale.chat_id].push(whale);
-              } else {
-                ungrouped.push(whale);
-              }
+              const cid = whale.chat_id || 'ungrouped';
+              if (!groupMap[cid]) groupMap[cid] = [];
+              groupMap[cid].push(whale);
             });
 
-            const chatIds = Object.keys(groups);
+            interface GroupData {
+              id: string;
+              label: string;
+              whales: Whale[];
+              totalUSDC: number;
+              totalPortfolio: number;
+              totalValue: number;
+            }
+
+            const groupList: GroupData[] = Object.entries(groupMap).map(([cid, groupWhales]) => {
+              let totalUSDC = 0;
+              let totalPortfolio = 0;
+              
+              groupWhales.forEach(w => {
+                const bal = balances[w.address.toLowerCase()] || balances[w.address];
+                if (bal) {
+                  totalUSDC += bal.usdc_balance || 0;
+                  totalPortfolio += bal.portfolio_value || 0;
+                }
+              });
+
+              return {
+                id: cid,
+                label: cid === 'ungrouped' ? 'Gruplanmamış (Varsayılan Chat)' : `📱 ${cid}`,
+                whales: groupWhales,
+                totalUSDC,
+                totalPortfolio,
+                totalValue: totalUSDC + totalPortfolio
+              };
+            });
+
+            // Sort groups by total balance descending (highest first)
+            groupList.sort((a, b) => b.totalValue - a.totalValue);
 
             const renderWhaleCard = (whale: Whale) => {
               const bal = balances[whale.address.toLowerCase()] || balances[whale.address];
@@ -350,33 +377,30 @@ function App() {
 
             return (
               <div>
-                {/* Grouped whales by chat_id */}
-                {chatIds.map((chatId, groupIndex) => (
-                  <div key={chatId} className={`chat-group color-${groupIndex % 7}`}>
+                {groupList.map((group, groupIndex) => (
+                  <div key={group.id} className={`chat-group color-${group.id === 'ungrouped' ? 'ungrouped' : groupIndex % 7}`}>
                     <div className="chat-group-header">
                       <div className="chat-group-dot"></div>
-                      <span className="chat-group-label">📱 {chatId}</span>
-                      <span className="chat-group-count">{groups[chatId].length} balina</span>
+                      <span className="chat-group-label">{group.label}</span>
+                      
+                      {(group.totalUSDC > 0 || group.totalPortfolio > 0) && (
+                        <div className="chat-group-balance">
+                          <span className="group-balance-badge usdc" title="Grup Toplam USDC">
+                            💰 {formatBalance(group.totalUSDC)}
+                          </span>
+                          <span className="group-balance-badge portfolio" title="Grup Toplam Portfolio">
+                            📊 {formatBalance(group.totalPortfolio)}
+                          </span>
+                        </div>
+                      )}
+                      
+                      <span className="chat-group-count">{group.whales.length} balina</span>
                     </div>
                     <div className="whale-grid">
-                      {groups[chatId].map(renderWhaleCard)}
+                      {group.whales.map(renderWhaleCard)}
                     </div>
                   </div>
                 ))}
-
-                {/* Ungrouped whales (no chat_id) */}
-                {ungrouped.length > 0 && (
-                  <div className="chat-group color-ungrouped">
-                    <div className="chat-group-header">
-                      <div className="chat-group-dot"></div>
-                      <span className="chat-group-label">Gruplanmamış (Varsayılan Chat)</span>
-                      <span className="chat-group-count">{ungrouped.length} balina</span>
-                    </div>
-                    <div className="whale-grid">
-                      {ungrouped.map(renderWhaleCard)}
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })()}

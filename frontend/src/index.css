@@ -611,3 +611,42 @@ h1, h2, h3 {
   opacity: 1;
   transform: scale(1.05);
 }
+
+/* ============================================================
+   GROUP BALANCE BADGES
+   ============================================================ */
+.chat-group-balance {
+  display: flex;
+  gap: 6px;
+  margin-left: 12px;
+  align-items: center;
+}
+
+@media (max-width: 600px) {
+  .chat-group-balance {
+    display: none; /* Hide group totals on small mobile screens to prevent overflow */
+  }
+}
+
+.group-balance-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1;
+}
+
+.group-balance-badge.usdc {
+  background: rgba(0, 240, 255, 0.06);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(0, 240, 255, 0.12);
+}
+
+.group-balance-badge.portfolio {
+  background: rgba(138, 43, 226, 0.06);
+  color: #b366ff;
+  border: 1px solid rgba(138, 43, 226, 0.12);
+}
