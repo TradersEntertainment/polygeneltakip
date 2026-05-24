@@ -16,11 +16,16 @@ POLYMARKET_API_URL = "https://data-api.polymarket.com/activity"
 POLL_INTERVAL = 5
 
 # ============================================================
-# CRYPTO-ONLY FILTER - spor betlerini filtrele
-# Balinalar sinyal karıştırmak için spor betleri alıyor
+# CRYPTO-ONLY FILTER - spor/film/diğer betlerini filtrele
+# Balinalar sinyal karıştırmak için crypto dışı betler alıyor
 # Sadece crypto marketlerini takip ediyoruz
+# Word-boundary matching: "op" sadece "OP" kelimesini yakalar,
+# "Opening" içindeki "op"u değil
 # ============================================================
+import re
+
 CRYPTO_KEYWORDS = [
+    # Major coins - tam isim ve ticker
     "bitcoin", "btc", "ethereum", "eth", "solana", "sol",
     "xrp", "ripple", "dogecoin", "doge", "bnb", "binance",
     "hype", "hyperliquid", "cardano", "ada", "polkadot", "dot",
@@ -34,12 +39,17 @@ CRYPTO_KEYWORDS = [
     "up or down", "above", "below",
 ]
 
+# Precompile regex: \b ensures word boundary so "op" won't match "Opening"
+_CRYPTO_PATTERNS = [
+    re.compile(r'\b' + re.escape(kw) + r'\b', re.IGNORECASE)
+    for kw in CRYPTO_KEYWORDS
+]
+
 def is_crypto_market(title: str) -> bool:
-    """Check if a market title is crypto-related."""
+    """Check if a market title is crypto-related using word-boundary matching."""
     if not title:
         return False
-    title_lower = title.lower()
-    return any(keyword in title_lower for keyword in CRYPTO_KEYWORDS)
+    return any(pattern.search(title) for pattern in _CRYPTO_PATTERNS)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
