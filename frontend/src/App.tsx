@@ -23,6 +23,7 @@ function App() {
   const [address, setAddress] = useState('');
   const [name, setName] = useState('');
   const [chatId, setChatId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
 
   const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -258,7 +259,21 @@ function App() {
 
         {/* Right Column: Tracked Whales List */}
         <div className="glass-panel">
-          <h2 style={{ marginBottom: '25px', color: 'var(--accent-purple)' }}>Takip Edilen Balinalar ({activeWhalesList.length})</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
+            <h2 style={{ margin: 0, color: 'var(--accent-purple)' }}>Takip Edilen Balinalar ({activeWhalesList.length})</h2>
+            <div className="search-box">
+              <input
+                type="text"
+                className="search-input"
+                placeholder="🔍 Balina adı veya cüzdan adresi ara..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button className="clear-search" onClick={() => setSearchTerm('')}>✕</button>
+              )}
+            </div>
+          </div>
           
           {activeWhalesList.length === 0 ? (
             <div className="empty-state">
@@ -267,9 +282,24 @@ function App() {
               <p>Sol taraftaki formu kullanarak ilk balinanızı ekleyin veya aşağıdaki durdurulan balinaları aktifleştirin.</p>
             </div>
           ) : (() => {
-            // Group active whales by chat_id or 'ungrouped'
+            // Group active whales by chat_id or 'ungrouped' after applying search filter
+            const filteredActiveWhales = activeWhalesList.filter(w =>
+              w.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              w.address.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            if (filteredActiveWhales.length === 0) {
+              return (
+                <div className="empty-state">
+                  <div className="empty-state-icon">🔍</div>
+                  <h3>Aramanızla eşleşen aktif balina bulunamadı</h3>
+                  <p>Arama terimini kontrol edin veya başka bir anahtar kelime deneyin.</p>
+                </div>
+              );
+            }
+
             const groupMap: Record<string, Whale[]> = {};
-            activeWhalesList.forEach((whale) => {
+            filteredActiveWhales.forEach((whale) => {
               const cid = whale.chat_id || 'ungrouped';
               if (!groupMap[cid]) groupMap[cid] = [];
               groupMap[cid].push(whale);
@@ -408,95 +438,104 @@ function App() {
       </div>
 
       {/* Paused/Deleted Whales Section */}
-      {pausedWhales.length > 0 && (
-        <div className="glass-panel" style={{ marginTop: '30px' }}>
-          <h2 style={{ marginBottom: '15px', color: 'var(--text-secondary)' }}>
-            🔇 Takibi Durdurulan / Silinen Balinalar ({pausedWhales.length})
-          </h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-            Aşağıdaki cüzdanlar için Telegram bildirimleri <strong>gönderilmez</strong>. Dilediğinizde yeniden takibe alabilir veya kalıcı olarak silebilirsiniz.
-          </p>
-          
-          <div className="whale-grid">
-            {pausedWhales.map((whale) => {
-              const bal = balances[whale.address.toLowerCase()] || balances[whale.address];
-              const hasBalance = bal !== undefined;
-              const usdcBalance = bal?.usdc_balance ?? 0;
-              const portfolioValue = bal?.portfolio_value ?? 0;
+      {(() => {
+        const filteredPausedWhales = pausedWhales.filter(w =>
+          w.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          w.address.toLowerCase().includes(searchTerm.toLowerCase())
+        );
 
-              return (
-                <div key={whale.id} className="whale-card whale-card-paused">
-                  <div className="whale-card-header">
-                    <h3 className="whale-card-title">
-                      <span className="status-indicator status-paused" title="Takip durduruldu"></span>
-                      {whale.name}
-                    </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <button 
-                        onClick={() => handleReactivate(whale.address, whale.name)}
-                        className="whale-reactivate-btn"
-                        title="Yeniden Aktifleştir"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
-                        </svg>
-                      </button>
-                      <button 
-                        onClick={() => handleRemovePermanent(whale.address, whale.name)}
-                        className="whale-delete-btn"
-                        title="Kalıcı Olarak Veritabanından Sil"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"></polyline>
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="whale-card-body">
-                    <div className="card-links-row">
-                      <span 
-                        className="whale-address" 
-                        onClick={() => copyToClipboard(whale.address)} 
-                        title="Cüzdan Adresini Kopyala"
-                      >
-                        {truncateAddress(whale.address)} 📋
-                      </span>
-                      <a 
-                        href={`https://www.betmoar.fun/profile/${whale.address}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="betmoar-link"
-                        title="Betmoar Profilini İncele"
-                      >
-                        🔍 Betmoar
-                      </a>
+        if (filteredPausedWhales.length === 0) return null;
+
+        return (
+          <div className="glass-panel" style={{ marginTop: '30px' }}>
+            <h2 style={{ marginBottom: '15px', color: 'var(--text-secondary)' }}>
+              🔇 Takibi Durdurulan / Silinen Balinalar ({filteredPausedWhales.length})
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+              Aşağıdaki cüzdanlar için Telegram bildirimleri <strong>gönderilmez</strong>. Dilediğinizde yeniden takibe alabilir veya kalıcı olarak silebilirsiniz.
+            </p>
+            
+            <div className="whale-grid">
+              {filteredPausedWhales.map((whale) => {
+                const bal = balances[whale.address.toLowerCase()] || balances[whale.address];
+                const hasBalance = bal !== undefined;
+                const usdcBalance = bal?.usdc_balance ?? 0;
+                const portfolioValue = bal?.portfolio_value ?? 0;
+
+                return (
+                  <div key={whale.id} className="whale-card whale-card-paused">
+                    <div className="whale-card-header">
+                      <h3 className="whale-card-title">
+                        <span className="status-indicator status-paused" title="Takip durduruldu"></span>
+                        {whale.name}
+                      </h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button 
+                          onClick={() => handleReactivate(whale.address, whale.name)}
+                          className="whale-reactivate-btn"
+                          title="Yeniden Aktifleştir"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                          </svg>
+                        </button>
+                        <button 
+                          onClick={() => handleRemovePermanent(whale.address, whale.name)}
+                          className="whale-delete-btn"
+                          title="Kalıcı Olarak Veritabanından Sil"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                     
-                    {hasBalance ? (
-                      <div className="balance-row">
-                        <span className={`balance-badge ${getBalanceClass(usdcBalance)}`}>
-                          💰 {formatBalance(usdcBalance)}
+                    <div className="whale-card-body">
+                      <div className="card-links-row">
+                        <span 
+                          className="whale-address" 
+                          onClick={() => copyToClipboard(whale.address)} 
+                          title="Cüzdan Adresini Kopyala"
+                        >
+                          {truncateAddress(whale.address)} 📋
                         </span>
-                        <span className="balance-badge balance-portfolio">
-                          📊 {formatBalance(portfolioValue)}
-                        </span>
+                        <a 
+                          href={`https://www.betmoar.fun/profile/${whale.address}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="betmoar-link"
+                          title="Betmoar Profilini İncele"
+                        >
+                          🔍 Betmoar
+                        </a>
                       </div>
-                    ) : (
-                      <div className="balance-row">
-                        <span className="balance-badge balance-loading">
-                          ⏳ Yükleniyor...
-                        </span>
-                      </div>
-                    )}
+                      
+                      {hasBalance ? (
+                        <div className="balance-row">
+                          <span className={`balance-badge ${getBalanceClass(usdcBalance)}`}>
+                            💰 {formatBalance(usdcBalance)}
+                          </span>
+                          <span className="balance-badge balance-portfolio">
+                            📊 {formatBalance(portfolioValue)}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="balance-row">
+                          <span className="balance-badge balance-loading">
+                            ⏳ Yükleniyor...
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {toast.visible && (
         <div className="toast-container">
