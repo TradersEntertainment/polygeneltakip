@@ -15,14 +15,12 @@ logger = logging.getLogger(__name__)
 # Bakiye değişikliklerinde Telegram bildirimi gönder
 # ============================================================
 
-# Polygon RPC (public endpoint, can be replaced with private one)
 # Polygon RPC URLs (stable public endpoints with fallback support)
 POLYGON_RPCS = [
     os.getenv("POLYGON_RPC_URL", "https://polygon-bor-rpc.publicnode.com"),
+    "https://1rpc.io/matic",
     "https://polygon.llamarpc.com",
-    "https://polygon-mainnet.public.blastapi.io",
-    "https://rpc.ankr.com/polygon",
-    "https://1rpc.io/matic"
+    "https://polygon-rpc.com"
 ]
 
 # pUSD (Polymarket USD) contract on Polygon (Polymarket uses this for account balances)
@@ -45,7 +43,7 @@ _balance_cache: dict = {}
 
 
 async def fetch_usdc_balance(session: aiohttp.ClientSession, address: str) -> float:
-    """Fetch pUSD (Polymarket USD) balance from Polygon chain via RPC with fallbacks."""
+    """Fetch pUSD (Polymarket USD) balance from Polygon chain via RPC with fallbacks and JSON-RPC error protection."""
     # balanceOf(address) function selector: 0x70a08231
     # Pad address to 32 bytes
     clean_address = address.lower().replace("0x", "").zfill(64)
@@ -70,16 +68,26 @@ async def fetch_usdc_balance(session: aiohttp.ClientSession, address: str) -> fl
             async with session.post(rpc_url, json=payload, timeout=5) as response:
                 if response.status == 200:
                     result = await response.json()
-                    hex_balance = result.get("result", "0x0")
+                    
+                    # Check for JSON-RPC error or missing result field
+                    if "error" in result or "result" not in result:
+                        logger.warning(f"⚠️ RPC {rpc_url} returned JSON-RPC error or missing result field for {address}: {result.get('error')}")
+                        continue
+                        
+                    hex_balance = result.get("result")
+                    if hex_balance is None or hex_balance == "0x":
+                        logger.warning(f"⚠️ RPC {rpc_url} returned empty hex balance for {address}")
+                        continue
+                        
                     # pUSD has 6 decimals
                     balance = int(hex_balance, 16) / 1e6
                     return balance
                 else:
-                    logger.warning(f"RPC {rpc_url} returned status {response.status} for {address}")
+                    logger.warning(f"⚠️ RPC {rpc_url} returned status {response.status} for {address}")
         except Exception as e:
-            logger.warning(f"Failed to fetch balance from RPC {rpc_url} for {address}: {e}")
+            logger.warning(f"⚠️ Failed to fetch balance from RPC {rpc_url} for {address}: {e}")
             
-    logger.error(f"All Polygon RPCs failed to fetch balance for {address}")
+    logger.error(f"❌ All Polygon RPCs failed to fetch balance for {address}")
     return -1
 
 
