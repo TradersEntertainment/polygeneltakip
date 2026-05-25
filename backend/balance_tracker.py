@@ -37,6 +37,9 @@ BALANCE_CHECK_INTERVAL = 60  # every 60 seconds
 # Bakiye $1000 altına düşünce bildirim gönder
 LOW_BALANCE_THRESHOLD = 1000  # $1000
 
+# Dedicated Telegram chat/channel ID for all balance-related alerts (deposits/low balances)
+BALANCE_ALERTS_CHAT_ID = os.getenv("BALANCE_ALERTS_CHAT_ID", "-5251294356")
+
 # In-memory cache: address -> {usdc_balance, portfolio_value, last_updated, low_balance_notified}
 _balance_cache: dict = {}
 
@@ -175,7 +178,7 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
             f"✨ Toplam Değer: <b>${current_total:,.2f}</b> (USDC + Portfolio)\n"
             f"✅ Balina hesaba yeni fon yatırdı!"
         )
-        await send_notification(msg, chat_id=whale.get('chat_id'))
+        await send_notification(msg, chat_id=BALANCE_ALERTS_CHAT_ID)
         logger.info(f"💰 Deposit detected: {nickname} USDC={usdc_balance:.2f} Total={current_total:.2f}")
 
     # SADECE bakiye $1000 altına düşüp en az 10 dakika (600 saniye) boyunca düşük kalırsa bildir
@@ -192,7 +195,7 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
                     f"🎯 Portfolio: ${portfolio_value:,.2f}\n"
                     f"⚠️ Balina bakiyesi 10 dakikadır düşük seviyede kalmaya devam ediyor!"
                 )
-                await send_notification(msg, chat_id=whale.get('chat_id'))
+                await send_notification(msg, chat_id=BALANCE_ALERTS_CHAT_ID)
                 logger.info(f"🚨 Low balance alert (delayed 10m): {nickname} USDC=${usdc_balance:.2f}")
     
     # Bakiye tekrar $1000 üstüne çıkarsa flag'leri resetle (bir sonraki düşüşte tekrar bildirilsin)
