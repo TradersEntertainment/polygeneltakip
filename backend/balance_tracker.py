@@ -103,7 +103,7 @@ async def fetch_portfolio_value(session: aiohttp.ClientSession, address: str) ->
 
 
 async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
-    """Check a single whale's balance. Only notify when balance drops below $1000."""
+    """Check a single whale's balance. Only notify when balance drops below $1000 and stays there for 10 mins."""
     address = whale['address']
     nickname = whale.get('name', address[:8])
     
@@ -113,37 +113,41 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
         fetch_portfolio_value(session, address)
     )
     
-    if usdc_balance < 0 and portfolio_value < 0:
-        return  # Both failed, skip
+    if usdc_balance < 0:
+        # RPC query failed. Do NOT trust or update USDC balance to 0 to prevent fake alerts!
+        logger.warning(f"⚠️ Polygon RPC failed for {nickname} ({address}). Balance check skipped to prevent fake alerts.")
+        return
+        
+    if portfolio_value < 0:
+        portfolio_value = 0  # Treat portfolio value fetch failure gracefully as 0 without blocking USDC
     
     now = time.time()
     
     # Get previous state from cache
     prev = _balance_cache.get(address)
     was_notified = prev.get("low_balance_notified", False) if prev else False
+    low_balance_started_at = prev.get("low_balance_started_at", None) if prev else None
     
+    # Track low balance start time
+    if usdc_balance < LOW_BALANCE_THRESHOLD:
+        if low_balance_started_at is None:
+            low_balance_started_at = now
+    else:
+        low_balance_started_at = None
+        was_notified = False
+        
     # Update cache
     _balance_cache[address] = {
         "usdc_balance": max(usdc_balance, 0),
         "portfolio_value": max(portfolio_value, 0),
         "last_updated": now,
         "nickname": nickname,
-        "low_balance_notified": was_notified
+        "low_balance_notified": was_notified,
+        "low_balance_started_at": low_balance_started_at
     }
     
     # If first time, just record (no notification)
     if prev is None:
-        # İlk kayıtta da $1000 altındaysa ve aktif takip ediliyorsa bildir
-        if usdc_balance >= 0 and usdc_balance < LOW_BALANCE_THRESHOLD and whale.get('status', 'tracking') == 'tracking':
-            _balance_cache[address]["low_balance_notified"] = True
-            msg = (
-                f"🚨 <b>DÜŞÜK BAKİYE TESPİT EDİLDİ</b>\n"
-                f"👤 {nickname}\n"
-                f"💰 USDC: <b>${usdc_balance:,.2f}</b>\n"
-                f"🎯 Portfolio: ${portfolio_value:,.2f}\n"
-                f"⚠️ Bakiye ${LOW_BALANCE_THRESHOLD:,} altında!"
-            )
-            await send_notification(msg, chat_id=whale.get('chat_id'))
         logger.info(f"💰 İlk bakiye kaydı: {nickname} | USDC: ${usdc_balance:.2f} | Portfolio: ${portfolio_value:.2f}")
         return
     
@@ -162,6 +166,7 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
         whale.get('status', 'tracking') == 'tracking'
     ):
         _balance_cache[address]["low_balance_notified"] = False  # Reset low balance flag immediately
+        _balance_cache[address]["low_balance_started_at"] = None
         msg = (
             f"💰 <b>YENİ PARA YATIRMA TESPİT EDİLDİ!</b>\n"
             f"👤 {nickname}\n"
@@ -173,22 +178,27 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
         await send_notification(msg, chat_id=whale.get('chat_id'))
         logger.info(f"💰 Deposit detected: {nickname} USDC={usdc_balance:.2f} Total={current_total:.2f}")
 
-    # SADECE bakiye $1000 altına düşünce ve aktif takip ediliyorsa bildir (ve daha önce bildirilmemişse)
-    if usdc_balance >= 0 and usdc_balance < LOW_BALANCE_THRESHOLD and not was_notified and whale.get('status', 'tracking') == 'tracking':
-        _balance_cache[address]["low_balance_notified"] = True
-        msg = (
-            f"🚨 <b>BAKİYE ${LOW_BALANCE_THRESHOLD:,} ALTINA DÜŞTÜ!</b>\n"
-            f"👤 {nickname}\n"
-            f"💸 Önceki: ${prev_usdc:,.2f} → Şimdi: <b>${usdc_balance:,.2f}</b>\n"
-            f"🎯 Portfolio: ${portfolio_value:,.2f}\n"
-            f"⚠️ Balina parayı çekmiş olabilir!"
-        )
-        await send_notification(msg, chat_id=whale.get('chat_id'))
-        logger.info(f"🚨 Low balance alert: {nickname} USDC=${usdc_balance:.2f}")
+    # SADECE bakiye $1000 altına düşüp en az 10 dakika (600 saniye) boyunca düşük kalırsa bildir
+    LOW_BALANCE_DURATION = 600  # 10 minutes delay to prevent fake alerts
+    if usdc_balance < LOW_BALANCE_THRESHOLD and whale.get('status', 'tracking') == 'tracking':
+        if low_balance_started_at is not None:
+            elapsed = now - low_balance_started_at
+            if elapsed >= LOW_BALANCE_DURATION and not was_notified:
+                _balance_cache[address]["low_balance_notified"] = True
+                msg = (
+                    f"🚨 <b>BAKİYE ${LOW_BALANCE_THRESHOLD:,} ALTINDA (10 Dk. Süresince)!</b>\n"
+                    f"👤 {nickname}\n"
+                    f"💸 Önceki: ${prev_usdc:,.2f} → Şimdi: <b>${usdc_balance:,.2f}</b>\n"
+                    f"🎯 Portfolio: ${portfolio_value:,.2f}\n"
+                    f"⚠️ Balina bakiyesi 10 dakikadır düşük seviyede kalmaya devam ediyor!"
+                )
+                await send_notification(msg, chat_id=whale.get('chat_id'))
+                logger.info(f"🚨 Low balance alert (delayed 10m): {nickname} USDC=${usdc_balance:.2f}")
     
-    # Bakiye tekrar $1000 üstüne çıkarsa flag'i resetle (bir sonraki düşüşte tekrar bildirilsin)
+    # Bakiye tekrar $1000 üstüne çıkarsa flag'leri resetle (bir sonraki düşüşte tekrar bildirilsin)
     if usdc_balance >= LOW_BALANCE_THRESHOLD and was_notified:
         _balance_cache[address]["low_balance_notified"] = False
+        _balance_cache[address]["low_balance_started_at"] = None
         logger.info(f"✅ Balance recovered: {nickname} USDC=${usdc_balance:.2f}")
 
 
