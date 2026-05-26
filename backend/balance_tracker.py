@@ -184,7 +184,9 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
             f"💸 USDC: ${prev_usdc:,.2f} → <b>${usdc_balance:,.2f}</b>\n"
             f"🎯 Portfolio: ${portfolio_value:,.2f}\n"
             f"✨ Toplam Değer: <b>${current_total:,.2f}</b> (USDC + Portfolio)\n"
-            f"✅ Balina hesaba yeni fon yatırdı!"
+            f"✅ Balina hesaba yeni fon yatırdı!\n\n"
+            f"🔍 <a href='https://www.betmoar.fun/profile/{address}'>Betmoar Profili</a> | "
+            f"📋 <a href='https://polygonscan.com/address/{address}'>Polygonscan</a>"
         )
         await send_notification(msg, chat_id=BALANCE_ALERTS_CHAT_ID)
         logger.info(f"💰 Deposit detected: {nickname} USDC={usdc_balance:.2f} Total={current_total:.2f}")
@@ -201,7 +203,9 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
                     f"👤 {nickname}\n"
                     f"💸 Önceki: ${prev_usdc:,.2f} → Şimdi: <b>${usdc_balance:,.2f}</b>\n"
                     f"🎯 Portfolio: ${portfolio_value:,.2f}\n"
-                    f"⚠️ Balina bakiyesi 10 dakikadır düşük seviyede kalmaya devam ediyor!"
+                    f"⚠️ Balina bakiyesi 10 dakikadır düşük seviyede kalmaya devam ediyor!\n\n"
+                    f"🔍 <a href='https://www.betmoar.fun/profile/{address}'>Betmoar Profili</a> | "
+                    f"📋 <a href='https://polygonscan.com/address/{address}'>Polygonscan</a>"
                 )
                 await send_notification(msg, chat_id=BALANCE_ALERTS_CHAT_ID)
                 logger.info(f"🚨 Low balance alert (delayed 10m): {nickname} USDC=${usdc_balance:.2f}")
