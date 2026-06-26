@@ -133,14 +133,15 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
         portfolio_value = 0  # Treat portfolio value fetch failure gracefully as 0 without blocking USDC
     
     now = time.time()
+    total_value = usdc_balance + portfolio_value
     
     # Get previous state from cache
     prev = _balance_cache.get(address)
     was_notified = prev.get("low_balance_notified", False) if prev else False
     low_balance_started_at = prev.get("low_balance_started_at", None) if prev else None
     
-    # Track low balance start time
-    if usdc_balance < LOW_BALANCE_THRESHOLD:
+    # Track low balance start time based on total value (USDC + Portfolio)
+    if total_value < LOW_BALANCE_THRESHOLD:
         if low_balance_started_at is None:
             low_balance_started_at = now
     else:
@@ -168,9 +169,9 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
     current_total = usdc_balance + portfolio_value
     
     # 💰 PARA YATIRMA TESPİTİ: 
-    # Düşük bakiyeli (USDC < 1000) bir balina hesaba yeni para yatırırsa ve toplam değeri (USDC + Portfolio) $3000'ı geçerse bildir
+    # Düşük bakiyeli (USDC + Portfolio < 1000) bir balina hesaba yeni para yatırırsa ve toplam değeri $3000'ı geçerse bildir
     if (
-        prev_usdc < LOW_BALANCE_THRESHOLD and
+        prev_total < LOW_BALANCE_THRESHOLD and
         usdc_balance > prev_usdc and
         current_total >= 3000 and
         prev_total < 3000 and
@@ -191,30 +192,31 @@ async def check_whale_balance(session: aiohttp.ClientSession, whale: dict):
         await send_notification(msg, chat_id=BALANCE_ALERTS_CHAT_ID)
         logger.info(f"💰 Deposit detected: {nickname} USDC={usdc_balance:.2f} Total={current_total:.2f}")
 
-    # SADECE bakiye $1000 altına düşüp en az 10 dakika (600 saniye) boyunca düşük kalırsa bildir
+    # SADECE toplam değer (USDC + Portfolio) $1000 altına düşüp en az 10 dakika (600 saniye) boyunca düşük kalırsa bildir
     LOW_BALANCE_DURATION = 600  # 10 minutes delay to prevent fake alerts
-    if usdc_balance < LOW_BALANCE_THRESHOLD and whale.get('status', 'tracking') == 'tracking':
+    if total_value < LOW_BALANCE_THRESHOLD and whale.get('status', 'tracking') == 'tracking':
         if low_balance_started_at is not None:
             elapsed = now - low_balance_started_at
             if elapsed >= LOW_BALANCE_DURATION and not was_notified:
                 _balance_cache[address]["low_balance_notified"] = True
                 msg = (
-                    f"🚨 <b>BAKİYE ${LOW_BALANCE_THRESHOLD:,} ALTINDA (10 Dk. Süresince)!</b>\n"
+                    f"🚨 <b>TOPLAM DEĞER ${LOW_BALANCE_THRESHOLD:,} ALTINDA (10 Dk. Süresince)!</b>\n"
                     f"👤 {nickname}\n"
-                    f"💸 Önceki: ${prev_usdc:,.2f} → Şimdi: <b>${usdc_balance:,.2f}</b>\n"
-                    f"🎯 Portfolio: ${portfolio_value:,.2f}\n"
-                    f"⚠️ Balina bakiyesi 10 dakikadır düşük seviyede kalmaya devam ediyor!\n\n"
+                    f"💸 USDC: ${prev_usdc:,.2f} → <b>${usdc_balance:,.2f}</b>\n"
+                    f"🎯 Portfolio: ${prev_portfolio:,.2f} → <b>${portfolio_value:,.2f}</b>\n"
+                    f"✨ Toplam Değer: <b>${total_value:,.2f}</b> (USDC + Portfolio)\n"
+                    f"⚠️ Balina cüzdanı ve Polymarket pozisyon toplamı 10 dakikadır düşük seviyede!\n\n"
                     f"🔍 <a href='https://www.betmoar.fun/profile/{address}'>Betmoar Profili</a> | "
                     f"📋 <a href='https://polygonscan.com/address/{address}'>Polygonscan</a>"
                 )
                 await send_notification(msg, chat_id=BALANCE_ALERTS_CHAT_ID)
-                logger.info(f"🚨 Low balance alert (delayed 10m): {nickname} USDC=${usdc_balance:.2f}")
+                logger.info(f"🚨 Low balance alert (delayed 10m): {nickname} Total=${total_value:.2f}")
     
-    # Bakiye tekrar $1000 üstüne çıkarsa flag'leri resetle (bir sonraki düşüşte tekrar bildirilsin)
-    if usdc_balance >= LOW_BALANCE_THRESHOLD and was_notified:
+    # Toplam bakiye tekrar $1000 üstüne çıkarsa flag'leri resetle (bir sonraki düşüşte tekrar bildirilsin)
+    if total_value >= LOW_BALANCE_THRESHOLD and was_notified:
         _balance_cache[address]["low_balance_notified"] = False
         _balance_cache[address]["low_balance_started_at"] = None
-        logger.info(f"✅ Balance recovered: {nickname} USDC=${usdc_balance:.2f}")
+        logger.info(f"✅ Balance recovered: {nickname} Total=${total_value:.2f}")
 
 
 def get_all_balances() -> dict:

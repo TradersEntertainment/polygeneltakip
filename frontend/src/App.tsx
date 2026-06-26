@@ -157,9 +157,10 @@ function App() {
     return `$${value.toFixed(2)}`;
   };
 
-  const getBalanceClass = (usdc: number): string => {
-    if (usdc < 1000) return 'balance-danger';
-    if (usdc < 5000) return 'balance-warning';
+  const getBalanceClass = (usdc: number, portfolio: number): string => {
+    const total = usdc + portfolio;
+    if (total < 1000) return 'balance-danger';
+    if (total < 5000) return 'balance-warning';
     return 'balance-ok';
   };
 
@@ -172,7 +173,7 @@ function App() {
 
   const totalUSDC = activeBalances.reduce((sum, b) => sum + (b.usdc_balance || 0), 0);
   const totalPortfolio = activeBalances.reduce((sum, b) => sum + (b.portfolio_value || 0), 0);
-  const lowBalanceCount = activeBalances.filter(b => b.usdc_balance < 1000).length;
+  const lowBalanceCount = activeBalances.filter(b => ((b.usdc_balance || 0) + (b.portfolio_value || 0)) < 1000).length;
 
   return (
     <div className="container">
@@ -346,7 +347,7 @@ function App() {
               const portfolioValue = bal?.portfolio_value ?? 0;
 
               return (
-                <div key={whale.id} className={`whale-card ${hasBalance && usdcBalance < 1000 ? 'whale-card-alert' : ''}`}>
+                <div key={whale.id} className={`whale-card ${hasBalance && (usdcBalance + portfolioValue) < 1000 ? 'whale-card-alert' : ''}`}>
                   <div className="whale-card-header">
                     <h3 className="whale-card-title">
                       <span className="status-indicator" title="Aktif olarak takip ediliyor"></span>
@@ -386,7 +387,7 @@ function App() {
                     
                     {hasBalance ? (
                       <div className="balance-row">
-                        <span className={`balance-badge ${getBalanceClass(usdcBalance)}`}>
+                        <span className={`balance-badge ${getBalanceClass(usdcBalance, portfolioValue)}`}>
                           💰 {formatBalance(usdcBalance)}
                         </span>
                         <span className="balance-badge balance-portfolio">
@@ -514,7 +515,7 @@ function App() {
                       
                       {hasBalance ? (
                         <div className="balance-row">
-                          <span className={`balance-badge ${getBalanceClass(usdcBalance)}`}>
+                          <span className={`balance-badge ${getBalanceClass(usdcBalance, portfolioValue)}`}>
                             💰 {formatBalance(usdcBalance)}
                           </span>
                           <span className="balance-badge balance-portfolio">
